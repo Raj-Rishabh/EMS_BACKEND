@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const multer = require('multer');
 require('dotenv').config();
 
 const app = express();
@@ -14,12 +13,13 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// MongoDB Connection
+// MongoDB Connectionrs
+
 // const dbURI = 'mongodb://localhost:27017/employeeDB';
 
 
 const dbURL=process.env.ATLASDB_URL;
-mongoose.connect(dbURL, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(dbURL)
   .then(() => console.log('MongoDB Connected'))
   .catch(err => console.error(err));
 
@@ -37,6 +37,8 @@ const employeeSchema = new mongoose.Schema({
   imgUpload: { type: String, required: true }
 });
 
+employeeSchema.index({ name: 'text', _id: 'text'});
+
 const userSchema = new mongoose.Schema({
   userName: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -45,13 +47,6 @@ const userSchema = new mongoose.Schema({
 
 const Employee = mongoose.model('Employee', employeeSchema);
 const User = mongoose.model('User', userSchema);
-
-// Configure multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }
-});
 
 // Validation Function
 const validateEmployeeData = (data) => {
@@ -88,8 +83,11 @@ const handleDuplicateFieldError = (error) => {
 
 // API Endpoints
 app.get('/employees', async (req, res) => {
+  const query = req.query;
+  const searchQuery = query.search ? { $text: { $search: query.search } } : undefined
+  const sortField = query.field || 'createDate';
   try {
-    const employees = await Employee.find();
+    const employees = await Employee.find(searchQuery).sort({ [sortField]: 1 });
     res.json(employees);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch employees' });
